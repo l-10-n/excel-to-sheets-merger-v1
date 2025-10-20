@@ -37,4 +37,54 @@ def get_indeed_merge_config():
                 "T_Repetitions": {"source": "EDIT", "column": "Repetitions", "type": "direct"},
                 
                 # Columns U-AG: Indeed-specific additional fields (customize as needed)
-                "U_Field": {"value
+                "U_Field": {"value": "", "type": "static"},
+                "V_Field": {"value": "", "type": "static"},
+                "W_Field": {"value": "", "type": "static"},
+                "X_Field": {"value": "", "type": "static"},
+                "Y_Field": {"value": "", "type": "static"},
+                "Z_Field": {"value": "", "type": "static"},
+                "AA_Field": {"value": "", "type": "static"},
+                "AB_Field": {"value": "", "type": "static"},
+                "AC_Field": {"value": "", "type": "static"},
+                "AD_Field": {"value": "", "type": "static"},
+                "AE_Field": {"value": "", "type": "static"},
+                "AF_Field": {"value": "", "type": "static"},
+                "AG_Field": {"value": "", "type": "static"}
+            },
+            
+            # Define how to join Indeed's files
+            "join_keys": {
+                "xtm_tos": {
+                    "xtm_key": "Project ID",
+                    "tos_key": "order_id"
+                },
+                "xtm_edit": {
+                    "xtm_key": "Project ID",
+                    "edit_key": "Project ID"  # Adjust based on Indeed's Edit Distance column
+                }
+            },
+            
+            # Indeed-specific validation rules
+            "validation": {
+                "required_xtm_columns": ["Project ID", "Project name", "Department_Indeed", "Team_Indeed"],
+                "required_tos_columns": ["order_id", "service_type", "requested_by"],
+                "required_edit_columns": ["No match (after MTPE discount)"]
+            }
+        }
+    }
+
+def get_indeed_column_names():
+    """Returns list of all 33 column names for Indeed's format"""
+    return [
+        "A_Status", "B_Project_ID", "C_Project_Name", "D_Creation_Date", 
+        "E_Due_Date", "F_Department", "G_Team", "H_Source_Language",
+        "I_Target_Language", "J_Service_Type", "K_Requested_By", "L_Tags",
+        "M_No_Match", "N_50_74_Match", "O_75_84_Match", "P_85_94_Match",
+        "Q_Total_Words", "R_95_99_Match", "S_100_Match", "T_Repetitions",
+        "U_Field", "V_Field", "W_Field", "X_Field", "Y_Field", "Z_Field",
+        "AA_Field", "AB_Field", "AC_Field", "AD_Field", "AE_Field", 
+        "AF_Field", "AG_Field"
+    ]
+
+# Client name for display
+CLIENT_NAME = "Indeed"
