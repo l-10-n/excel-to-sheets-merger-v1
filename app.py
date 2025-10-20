@@ -1,108 +1,234 @@
 """
-Excel to Google Sheets Merger Application
-Main Streamlit application for consolidating Excel exports into standardized Google Sheets
+Excel to Google Sheets Merger Application - Indeed Version
+Main Streamlit application for consolidating Indeed's Excel exports
 """
 
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import io
+
+# Import Indeed-specific modules
+from merge_processor import merge_indeed_files, validate_indeed_files, preview_merge_result
+from indeed_config import CLIENT_NAME
 
 # Page configuration
 st.set_page_config(
-    page_title="Excel to Google Sheets Merger",
+    page_title="Indeed - Excel to Google Sheets Merger",
     page_icon="📊",
     layout="wide"
 )
 
+# Initialize session state
+if 'processed_data' not in st.session_state:
+    st.session_state.processed_data = None
+if 'validation_errors' not in st.session_state:
+    st.session_state.validation_errors = []
+
 # Title and description
-st.title("📊 Excel to Google Sheets Merger")
-st.markdown("### Consolidate multiple Excel exports into a standardized Google Sheet format")
+st.title(f"📊 Excel to Google Sheets Merger - {CLIENT_NAME}")
+st.markdown("### Consolidate XTM, TOS, and Edit Distance exports into standardized 33-column Google Sheet")
 st.divider()
 
-# Sidebar for client selection
+# Sidebar for information and help
 with st.sidebar:
-    st.header("⚙️ Configuration")
-    
-    selected_client = st.selectbox(
-        "Select Client Profile",
-        options=["Standard_33_Column", "Client_2"],
-        help="Choose the client configuration for data processing rules"
-    )
+    st.header("ℹ️ About")
+    st.info(f"**Client:** {CLIENT_NAME}\n**Format:** 33-column standardized output")
     
     st.divider()
-    st.header("📋 Instructions")
+    st.header("📋 Required Files")
     st.markdown("""
-    1. Select your client profile
-    2. Upload the 3 required Excel files
-    3. Click 'Process Files'
-    4. Get your Google Sheets link
+    **1. XTM Export:**
+    - Project ID
+    - Project name
+    - Department_Indeed
+    - Team_Indeed
+    
+    **2. TOS Export:**
+    - order_id
+    - service_type
+    - requested_by
+    
+    **3. Edit Distance:**
+    - Word count columns
+    - Match percentages
+    """)
+    
+    st.divider()
+    st.header("📖 Instructions")
+    st.markdown("""
+    1. Upload all 3 Excel files
+    2. Validate the data
+    3. Review the preview
+    4. Process to Google Sheets
     """)
 
 # Main content - File upload section
-st.header("📁 Upload Excel Files")
+st.header("📁 Step 1: Upload Excel Files")
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
     st.markdown("**XTM Export File**")
     xtm_file = st.file_uploader(
-        "Choose XTM file",
+        "Project management data",
         type=['xlsx', 'xls'],
-        key="xtm_upload"
+        key="xtm_upload",
+        help="Upload XTM export with project details"
     )
+    if xtm_file:
+        st.success(f"✓ {xtm_file.name}")
 
 with col2:
     st.markdown("**TOS Export File**")
     tos_file = st.file_uploader(
-        "Choose TOS file",
+        "Order/request data",
         type=['xlsx', 'xls'],
-        key="tos_upload"
+        key="tos_upload",
+        help="Upload TOS export with order information"
     )
+    if tos_file:
+        st.success(f"✓ {tos_file.name}")
 
 with col3:
     st.markdown("**Edit Distance Export**")
     edit_file = st.file_uploader(
-        "Choose Edit Distance file",
+        "Word count metrics",
         type=['xlsx', 'xls'],
-        key="edit_upload"
+        key="edit_upload",
+        help="Upload Edit Distance export with word counts"
     )
+    if edit_file:
+        st.success(f"✓ {edit_file.name}")
 
-# Process button
-if st.button("🚀 Process Files", type="primary", use_container_width=True):
-    if all([xtm_file, tos_file, edit_file]):
-        with st.spinner("Processing files..."):
+# Validation and Preview Section
+if xtm_file and tos_file and edit_file:
+    st.divider()
+    st.header("📊 Step 2: Validate and Preview")
+    
+    if st.button("🔍 Validate Files", type="secondary", use_container_width=True):
+        with st.spinner("Reading and validating files..."):
             try:
                 # Read Excel files
                 xtm_df = pd.read_excel(xtm_file)
                 tos_df = pd.read_excel(tos_file)
                 edit_df = pd.read_excel(edit_file)
                 
-                st.success("✅ Files loaded successfully!")
+                # Store in session state
+                st.session_state.xtm_data = xtm_df
+                st.session_state.tos_data = tos_df
+                st.session_state.edit_data = edit_df
                 
-                # Show preview
-                st.subheader("Preview of loaded data:")
+                # Validate files
+                is_valid, errors = validate_indeed_files(xtm_df, tos_df, edit_df)
+                st.session_state.validation_errors = errors
                 
-                tab1, tab2, tab3 = st.tabs(["XTM Data", "TOS Data", "Edit Distance Data"])
-                
-                with tab1:
-                    st.write(f"Rows: {len(xtm_df)}, Columns: {len(xtm_df.columns)}")
-                    st.dataframe(xtm_df.head())
-                
-                with tab2:
-                    st.write(f"Rows: {len(tos_df)}, Columns: {len(tos_df.columns)}")
-                    st.dataframe(tos_df.head())
-                
-                with tab3:
-                    st.write(f"Rows: {len(edit_df)}, Columns: {len(edit_df.columns)}")
-                    st.dataframe(edit_df.head())
-                
-                st.info("📝 Note: Google Sheets integration will be added in the next phase")
-                
+                if is_valid:
+                    st.success("✅ All files validated successfully!")
+                    
+                    # Show file information
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("XTM Records", len(xtm_df))
+                    with col2:
+                        st.metric("TOS Records", len(tos_df))
+                    with col3:
+                        st.metric("Edit Distance Records", len(edit_df))
+                    
+                    # Preview tabs
+                    st.subheader("📋 Data Preview")
+                    tab1, tab2, tab3 = st.tabs(["XTM Data", "TOS Data", "Edit Distance Data"])
+                    
+                    with tab1:
+                        st.write(f"Shape: {xtm_df.shape[0]} rows × {xtm_df.shape[1]} columns")
+                        st.dataframe(xtm_df.head(), use_container_width=True)
+                    
+                    with tab2:
+                        st.write(f"Shape: {tos_df.shape[0]} rows × {tos_df.shape[1]} columns")
+                        st.dataframe(tos_df.head(), use_container_width=True)
+                    
+                    with tab3:
+                        st.write(f"Shape: {edit_df.shape[0]} rows × {edit_df.shape[1]} columns")
+                        st.dataframe(edit_df.head(), use_container_width=True)
+                else:
+                    st.error("❌ Validation failed. Please check the errors below:")
+                    for error in errors:
+                        st.error(f"• {error}")
+                    
             except Exception as e:
                 st.error(f"Error reading files: {str(e)}")
-    else:
-        st.warning("⚠️ Please upload all three files before processing")
+    
+    # Process and merge section
+    if hasattr(st.session_state, 'xtm_data') and st.session_state.validation_errors == []:
+        st.divider()
+        st.header("🚀 Step 3: Process and Create Google Sheet")
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.info("Click below to merge files into Indeed's 33-column format")
+        
+        if st.button("⚡ Process and Merge Files", type="primary", use_container_width=True):
+            with st.spinner("Merging files according to Indeed configuration..."):
+                try:
+                    # Perform the merge
+                    result_df = merge_indeed_files(
+                        st.session_state.xtm_data,
+                        st.session_state.tos_data,
+                        st.session_state.edit_data
+                    )
+                    
+                    st.session_state.processed_data = result_df
+                    
+                    # Show success and preview
+                    st.success(f"✅ Successfully merged files into {len(result_df.columns)}-column format!")
+                    
+                    # Get preview information
+                    preview_info = preview_merge_result(result_df)
+                    
+                    # Display metrics
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Total Rows", preview_info["total_rows"])
+                    with col2:
+                        st.metric("Total Columns", preview_info["total_columns"])
+                    with col3:
+                        st.metric("Client", preview_info["client"])
+                    with col4:
+                        st.metric("Status", "Ready for Export")
+                    
+                    # Show merged data preview
+                    st.subheader("📊 Merged Data Preview (First 10 rows)")
+                    st.dataframe(result_df.head(10), use_container_width=True)
+                    
+                    # Download option (temporary until Google Sheets is integrated)
+                    st.divider()
+                    st.subheader("💾 Download Merged Data")
+                    
+                    # Convert to Excel for download
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        result_df.to_excel(writer, index=False, sheet_name='Indeed_Merged_Data')
+                    excel_data = output.getvalue()
+                    
+                    col1, col2, col3 = st.columns([1, 2, 1])
+                    with col2:
+                        st.download_button(
+                            label="📥 Download as Excel",
+                            data=excel_data,
+                            file_name=f"Indeed_Merged_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True
+                        )
+                        
+                        st.info("🔜 Google Sheets integration coming next!")
+                    
+                except Exception as e:
+                    st.error(f"Error during merge: {str(e)}")
+                    st.exception(e)
+
+else:
+    st.info("👆 Please upload all three Excel files to begin")
 
 # Footer
 st.divider()
-st.caption("Excel to Google Sheets Merger v1.0.0")
+st.caption(f"Excel to Google Sheets Merger v1.0 | Client: {CLIENT_NAME} | 33-Column Format")
