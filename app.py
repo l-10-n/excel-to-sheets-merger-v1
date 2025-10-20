@@ -11,6 +11,7 @@ import io
 # Import Indeed-specific modules
 from merge_processor import merge_indeed_files, validate_indeed_files, preview_merge_result
 from indeed_config import CLIENT_NAME
+from google_sheets_handler import GoogleSheetsHandler, display_connection_status
 
 # Page configuration
 st.set_page_config(
@@ -200,9 +201,66 @@ if xtm_file and tos_file and edit_file:
                     st.subheader("📊 Merged Data Preview (First 10 rows)")
                     st.dataframe(result_df.head(10), use_container_width=True)
                     
-                    # Download option (temporary until Google Sheets is integrated)
+                    # Download option and Google Sheets upload
                     st.divider()
-                    st.subheader("💾 Download Merged Data")
+                    
+                    # Google Sheets Integration
+                    st.subheader("☁️ Upload to Google Sheets")
+                    
+                    # Initialize Google Sheets handler
+                    sheets_handler = GoogleSheetsHandler()
+                    
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        sheet_name = st.text_input(
+                            "Google Sheet Name (optional)",
+                            placeholder=f"Indeed_Report_{datetime.now().strftime('%Y%m%d')}",
+                            help="Leave blank for auto-generated name"
+                        )
+                    
+                    with col2:
+                        if st.button("📤 Create Google Sheet", type="primary", use_container_width=True):
+                            with st.spinner("Creating Google Sheet..."):
+                                result = sheets_handler.create_indeed_sheet(
+                                    result_df,
+                                    sheet_name if sheet_name else None
+                                )
+                                
+                                if result["success"]:
+                                    st.success("✅ Google Sheet created successfully!")
+                                    st.balloons()
+                                    
+                                    # Display sheet information
+                                    st.info(f"""
+                                    **Sheet Created!**
+                                    - 📊 Name: {result['name']}
+                                    - 📝 Rows: {result['rows']}
+                                    - 📋 Columns: {result['columns']}
+                                    """)
+                                    
+                                    # Display URL with copy button
+                                    st.text_input(
+                                        "Google Sheets URL:",
+                                        value=result['url'],
+                                        key="sheet_url",
+                                        help="Copy this link to share with your team"
+                                    )
+                                    
+                                    st.markdown(f"🔗 [Open Google Sheet]({result['url']})")
+                                    
+                                else:
+                                    st.error(f"Failed to create Google Sheet: {result['error']}")
+                                    st.info("Falling back to Excel download option below")
+                    
+                    # Test connection button
+                    with st.expander("🔧 Test Google Sheets Connection"):
+                        if st.button("Test Connection"):
+                            display_connection_status(sheets_handler)
+                    
+                    # Excel download as backup
+                    st.divider()
+                    st.subheader("💾 Alternative: Download as Excel")
                     
                     # Convert to Excel for download
                     output = io.BytesIO()
@@ -210,17 +268,13 @@ if xtm_file and tos_file and edit_file:
                         result_df.to_excel(writer, index=False, sheet_name='Indeed_Merged_Data')
                     excel_data = output.getvalue()
                     
-                    col1, col2, col3 = st.columns([1, 2, 1])
-                    with col2:
-                        st.download_button(
-                            label="📥 Download as Excel",
-                            data=excel_data,
-                            file_name=f"Indeed_Merged_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True
-                        )
-                        
-                        st.info("🔜 Google Sheets integration coming next!")
+                    st.download_button(
+                        label="📥 Download Excel File",
+                        data=excel_data,
+                        file_name=f"Indeed_Merged_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
                     
                 except Exception as e:
                     st.error(f"Error during merge: {str(e)}")
